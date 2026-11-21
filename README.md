@@ -1,4 +1,4 @@
-# DNS Switcher
+# PDNSapp
 
 An Android app that switches the system **Private DNS** provider with one tap, without going through Settings → Network → Private DNS.
 
@@ -16,18 +16,47 @@ Requires Android 9 (API 28) or newer.
 Requires JDK 17+ and the Android SDK (compileSdk 36).
 
 ```sh
-./gradlew assembleDebug
+./gradlew assembleDebug assembleRelease
 ```
 
-The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+Each APK is copied into a `build` folder at the project root:
+
+| Build | File | Signed with |
+|---|---|---|
+| Debug | `build/debug/PDNSapp-<version>-debug.apk` | `keys/debug.keystore` |
+| Release | `build/release/PDNSapp-<version>-release.apk` | `keys/release.jks` |
+
+### Signing keys
+
+Both keys live in a `keys` folder at the project root, which Git ignores:
+
+```
+keys/
+├── debug.keystore        Debug key (alias androiddebugkey, password android)
+├── release.jks           Release key (alias pdns-release)
+└── keystore.properties   Release key path, alias and passwords
+```
+
+`keystore.properties` format:
+
+```properties
+storeFile=release.jks
+storePassword=<password>
+keyAlias=pdns-release
+keyPassword=<password>
+```
+
+Back up the `keys` folder outside this PC. If `release.jks` or its password is lost, the installed app can never be updated; it has to be uninstalled and the permission granted again.
 
 ### 2. Install
 
 ```sh
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r build/release/PDNSapp-<version>-release.apk
 ```
 
-### 3. Grant the permission (one time)
+Use the release APK on your phone. The debug and release APKs are signed with different keys, so one can't be installed over the other without uninstalling.
+
+### 3. Grant the permission (once per phone)
 
 Android only lets an app change Private DNS if it holds `WRITE_SECURE_SETTINGS`, which can't be granted from the phone itself. With USB debugging on, run:
 
@@ -35,7 +64,52 @@ Android only lets an app change Private DNS if it holds `WRITE_SECURE_SETTINGS`,
 adb shell pm grant com.pdns.switcher android.permission.WRITE_SECURE_SETTINGS
 ```
 
-The grant survives app updates. Run it again after uninstalling or on a new phone. Without it, the app shows this command with a copy button.
+Then close and reopen the app. Without the permission, the app shows a red "One-time setup needed" card with this command and a copy button.
+
+If several phones are connected, pick one with `adb -s <serial>`; `adb devices -l` lists serials and models.
+
+#### Connecting the phone
+
+- **USB:** turn on Settings → Developer options → **USB debugging**, connect the cable, unlock the phone and tap **Allow** on the "Allow USB debugging?" prompt. On vivo and some other phones, also turn on **USB debugging (Security settings)** if it's there, or the grant can fail with a security error.
+- **Wireless (Android 11+, same Wi-Fi):** turn on Developer options → **Wireless debugging**, tap **Pair device with pairing code**, then run:
+
+  ```sh
+  adb pair <ip>:<pairing-port>
+  adb connect <ip>:<port>
+  ```
+
+#### When the grant is lost
+
+The grant **survives app updates**. It is lost only when:
+
+- the app is **uninstalled**, or
+- an APK **signed with a different key** is installed, for example switching from the debug build to the release build, which forces an uninstall.
+
+To avoid granting again:
+
+- Always install new versions over the existing app; don't uninstall first.
+- Keep using the same build type and key on a given phone.
+- Increase `versionCode` in `app/build.gradle.kts` for every release, so the new APK installs as an update.
+
+The grant applies to the main profile only. A copy of the app in Dual Apps, a clone space or a work profile needs its own grant.
+
+#### Why the app can't ask for this permission itself
+
+Android sorts permissions into levels:
+
+| Level | Examples | How an app gets it |
+|---|---|---|
+| Normal | Internet, vibrate | Automatically at install |
+| Dangerous | SMS, camera, location | A popup asking the user |
+| Special access | Modify system settings, display over other apps | A switch in Settings |
+| Signature / privileged | `WRITE_SECURE_SETTINGS` | No popup or switch; only system apps or an adb grant |
+
+Private DNS is in the last level on purpose. An app that can change DNS can route all web traffic through a server it controls. The "Modify system settings" switch (`WRITE_SETTINGS`) only covers basic settings such as brightness, not Private DNS.
+
+Ways to avoid a PC that aren't built yet:
+
+- **Shizuku:** a free app, started on the phone with Wireless debugging, that could let PDNSapp grant itself. It needs restarting after each reboot, but only for the grant itself.
+- **Root:** the app could grant itself on a rooted phone.
 
 ## Providers
 
