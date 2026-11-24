@@ -13,11 +13,11 @@ val releaseKeyProps = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-val appVersion = "1.2"
-val gitCommitCount = providers.exec {
-    commandLine("git", "rev-list", "--count", "HEAD")
-    isIgnoreExitValue = true
-}.standardOutput.asText.map { it.trim().toIntOrNull() ?: 1 }.getOrElse(1)
+val appVersion = "1.3.1"
+val appVersionCode = appVersion.split('.').map(String::toInt).let { (major, minor, patch) ->
+    require(major in 1..99 && minor in 1..9 && patch in 1..9) { "Version must be x.y.z with major 1-99, minor 1-9, patch 1-9" }
+    major * 100 + minor * 10 + patch
+}
 
 android {
     namespace = "com.pdns.switcher"
@@ -27,8 +27,8 @@ android {
         applicationId = "com.pdns.switcher"
         minSdk = 28
         targetSdk = 36
-        versionCode = gitCommitCount
-        versionName = "$appVersion.$gitCommitCount"
+        versionCode = appVersionCode
+        versionName = appVersion
     }
 
     signingConfigs {

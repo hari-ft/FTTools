@@ -34,12 +34,12 @@ Each APK is copied into a `build` folder at the project root:
 
 ### Versioning
 
-The version is bumped automatically from Git on every build:
+The version is set by `appVersion` in `app/build.gradle.kts` and follows `major.minor.patch`:
 
-- `versionCode` is the number of commits on the current branch, so every new commit gives a higher code and the APK installs as an update.
-- `versionName` is `<appVersion>.<commit count>`, for example `1.2.9`. Change `appVersion` in `app/build.gradle.kts` for a bigger version step.
-
-Builds from the same commit share a version, so commit changes before building a release to hand out.
+- Major is 1–99, minor and patch are 1–9. There are no zeros, so the lowest version is `1.1.1`.
+- Every release bumps the patch. After patch 9 it rolls to the next minor (`1.2.9` → `1.3.1`); after minor 9 it rolls to the next major (`1.9.9` → `2.1.1`).
+- Once a release of a version has been built, any later change gets a new version before the next release build.
+- `versionCode` is worked out from the version as `major*100 + minor*10 + patch` (`1.3.1` → `131`), so it always increases and new APKs install as updates. The build fails if the version is outside these ranges.
 
 ### Signing keys
 
@@ -106,7 +106,7 @@ To avoid granting again:
 
 - Always install new versions over the existing app; don't uninstall first.
 - Keep using the same build type and key on a given phone.
-- Build releases from a new commit. The version is bumped automatically, see [Versioning](#versioning).
+- Bump the version for every release, see [Versioning](#versioning).
 
 The grant applies to the main profile only. A copy of the app in Dual Apps, a clone space or a work profile needs its own grant.
 
