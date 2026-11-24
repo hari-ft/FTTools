@@ -1,13 +1,16 @@
 # FTTools
 
-An Android app that switches the system **Private DNS** provider with one tap, without going through Settings → Network → Private DNS.
-
-- One on/off slider per saved provider; turning one on turns the others off.
-- Turning off the active provider sets Private DNS to **Off**.
-- A settings screen to add, edit and delete providers.
-- Shows the phone's real current Private DNS state, including changes made in system Settings.
+An Android toolbox for changing system settings quickly. Each tool turns a setting that's buried several screens deep in Android Settings into one tap.
 
 Requires Android 9 (API 28) or newer.
+
+## Tools
+
+| Tool | What it does |
+|---|---|
+| [Private DNS](#private-dns) | Switch between saved Private DNS providers, or turn Private DNS off, with one slider per provider |
+
+All tools share the [one-time permission grant](#3-grant-the-permission-once-per-phone) below, so setting up the app once covers every tool.
 
 ## Setup
 
@@ -58,13 +61,15 @@ Use the release APK on your phone. The debug and release APKs are signed with di
 
 ### 3. Grant the permission (once per phone)
 
-Android only lets an app change Private DNS if it holds `WRITE_SECURE_SETTINGS`, which can't be granted from the phone itself. With USB debugging on, run:
+Many Android settings, including Private DNS, are protected. An app can only change them if it holds `WRITE_SECURE_SETTINGS`, which can't be granted from the phone itself. With USB debugging on, run:
 
 ```sh
 adb shell pm grant com.pdns.switcher android.permission.WRITE_SECURE_SETTINGS
 ```
 
 Then close and reopen the app. Without the permission, the app shows a red "One-time setup needed" card with this command and a copy button.
+
+The package ID is still `com.pdns.switcher` from when the app only switched Private DNS. Keeping it lets installed copies update in place and keep their grant.
 
 If several phones are connected, pick one with `adb -s <serial>`; `adb devices -l` lists serials and models.
 
@@ -104,14 +109,23 @@ Android sorts permissions into levels:
 | Special access | Modify system settings, display over other apps | A switch in Settings |
 | Signature / privileged | `WRITE_SECURE_SETTINGS` | No popup or switch; only system apps or an adb grant |
 
-Private DNS is in the last level on purpose. An app that can change DNS can route all web traffic through a server it controls. The "Modify system settings" switch (`WRITE_SETTINGS`) only covers basic settings such as brightness, not Private DNS.
+Protected settings are in the last level on purpose. For example, an app that can change DNS can route all web traffic through a server it controls. The "Modify system settings" switch (`WRITE_SETTINGS`) only covers basic settings such as brightness and ringtone, not protected ones.
 
 Ways to avoid a PC that aren't built yet:
 
 - **Shizuku:** a free app, started on the phone with Wireless debugging, that could let FTTools grant itself. It needs restarting after each reboot, but only for the grant itself.
 - **Root:** the app could grant itself on a rooted phone.
 
-## Providers
+## Private DNS
+
+Switches the system **Private DNS** provider without going through Settings → Network → Private DNS.
+
+- One on/off slider per saved provider; turning one on turns the others off.
+- Turning off the active provider sets Private DNS to **Off**.
+- A settings screen (gear icon) to add, edit and delete providers.
+- Shows the phone's real current Private DNS state, including changes made in system Settings.
+
+### Providers
 
 Private DNS uses DNS-over-TLS, so it accepts **hostnames only**. An IP address such as `1.1.1.1` won't work, and the app rejects one with a suggested hostname.
 
@@ -125,7 +139,7 @@ Built-in defaults:
 
 ### Other providers you can add
 
-Add any of these from the app's settings screen. Any service that publishes a DNS-over-TLS hostname will work; this isn't a complete list.
+Add any of these from the settings screen. Any service that publishes a DNS-over-TLS hostname will work; this isn't a complete list.
 
 **No filtering:** privacy and speed only; every site, ad and tracker loads normally.
 
@@ -182,9 +196,9 @@ Add any of these from the app's settings screen. Any service that publishes a DN
 
 Ad blocking can stop sponsored search results, deal or email tracking links, and "watch an ad" rewards from working. Rarely, it breaks a login or payment page. When that happens, switch to an unfiltered provider for that task, then switch back. It can't block YouTube, Facebook or Instagram ads, because those come from the same domain as the content.
 
-## How it works
+### How it works
 
-The app writes the same system settings the Private DNS screen uses:
+The tool writes the same system settings the Private DNS screen uses:
 
 | Setting (`Settings.Global`) | Value |
 |---|---|
@@ -197,7 +211,15 @@ The saved provider list is kept in the app's SharedPreferences.
 
 ```
 app/src/main/java/com/pdns/switcher/
-├── MainActivity.kt   Compose UI: home screen, settings screen, edit dialog
-├── PrivateDns.kt     Reads/writes system settings, validates hostnames
-└── DnsStore.kt       Saved provider list and defaults
+├── MainActivity.kt   Compose UI: Private DNS home screen, settings screen, edit dialog
+├── PrivateDns.kt     Private DNS: reads/writes system settings, validates hostnames
+└── DnsStore.kt       Private DNS: saved provider list and defaults
 ```
+
+## Adding a tool
+
+A new tool usually needs:
+
+1. A settings helper like `PrivateDns.kt` that reads and writes the setting through `Settings.Global`, `Settings.Secure` or `Settings.System`. Protected settings are covered by the existing `WRITE_SECURE_SETTINGS` grant.
+2. A screen in `MainActivity.kt`, plus a row in the [Tools](#tools) table above.
+3. A section in this README describing what the tool changes.
