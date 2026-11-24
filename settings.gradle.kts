@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "PDNSapp"
+rootProject.name = "FTTools"
 include(":app")

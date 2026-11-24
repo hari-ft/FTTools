@@ -71,7 +71,7 @@ listOf("debug", "release").forEach { buildType ->
     val copyApk = tasks.register<Copy>("copy${variant}Apk") {
         from(layout.buildDirectory.dir("outputs/apk/$buildType"))
         include("*.apk")
-        rename { "PDNSapp-${android.defaultConfig.versionName}-$buildType.apk" }
+        rename { "FTTools-${android.defaultConfig.versionName}-$buildType.apk" }
         into(rootProject.layout.buildDirectory.dir(buildType))
     }
     tasks.matching { it.name == "assemble$variant" }.configureEach { finalizedBy(copyApk) }

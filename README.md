@@ -1,4 +1,4 @@
-# PDNSapp
+# FTTools
 
 An Android app that switches the system **Private DNS** provider with one tap, without going through Settings → Network → Private DNS.
 
@@ -23,8 +23,8 @@ Each APK is copied into a `build` folder at the project root:
 
 | Build | File | Signed with |
 |---|---|---|
-| Debug | `build/debug/PDNSapp-<version>-debug.apk` | `keys/debug.keystore` |
-| Release | `build/release/PDNSapp-<version>-release.apk` | `keys/release.jks` |
+| Debug | `build/debug/FTTools-<version>-debug.apk` | `keys/debug.keystore` |
+| Release | `build/release/FTTools-<version>-release.apk` | `keys/release.jks` |
 
 ### Signing keys
 
@@ -51,7 +51,7 @@ Back up the `keys` folder outside this PC. If `release.jks` or its password is l
 ### 2. Install
 
 ```sh
-adb install -r build/release/PDNSapp-<version>-release.apk
+adb install -r build/release/FTTools-<version>-release.apk
 ```
 
 Use the release APK on your phone. The debug and release APKs are signed with different keys, so one can't be installed over the other without uninstalling.
@@ -108,7 +108,7 @@ Private DNS is in the last level on purpose. An app that can change DNS can rout
 
 Ways to avoid a PC that aren't built yet:
 
-- **Shizuku:** a free app, started on the phone with Wireless debugging, that could let PDNSapp grant itself. It needs restarting after each reboot, but only for the grant itself.
+- **Shizuku:** a free app, started on the phone with Wireless debugging, that could let FTTools grant itself. It needs restarting after each reboot, but only for the grant itself.
 - **Root:** the app could grant itself on a rooted phone.
 
 ## Providers
