@@ -57,7 +57,7 @@ private fun App(dnsStore: DnsStore, timeoutStore: TimeoutStore, resumeTick: Int)
 
     var dnsEntries by remember { mutableStateOf(dnsStore.load()) }
     var dnsState by remember { mutableStateOf(PrivateDns.read(ctx)) }
-    val timeoutOptions = remember { ScreenTimeout.phoneOptions(ctx) ?: ScreenTimeout.fallbackOptions() }
+    val timeoutOptions = remember { ScreenTimeout.phoneOptions(ctx).orEmpty() }
     var customTimeouts by remember { mutableStateOf(timeoutStore.loadCustom()) }
     var timeoutMs by remember { mutableStateOf(ScreenTimeout.read(ctx)) }
     var hasSecure by remember { mutableStateOf(Grants.hasSecureSettings(ctx)) }

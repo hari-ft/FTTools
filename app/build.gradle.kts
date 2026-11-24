@@ -13,6 +13,12 @@ val releaseKeyProps = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+val appVersion = "1.2"
+val gitCommitCount = providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+    isIgnoreExitValue = true
+}.standardOutput.asText.map { it.trim().toIntOrNull() ?: 1 }.getOrElse(1)
+
 android {
     namespace = "com.pdns.switcher"
     compileSdk = 36
@@ -21,8 +27,8 @@ android {
         applicationId = "com.pdns.switcher"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = gitCommitCount
+        versionName = "$appVersion.$gitCommitCount"
     }
 
     signingConfigs {

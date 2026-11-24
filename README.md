@@ -32,6 +32,15 @@ Each APK is copied into a `build` folder at the project root:
 | Debug | `build/debug/FTTools-<version>-debug.apk` | `keys/debug.keystore` |
 | Release | `build/release/FTTools-<version>-release.apk` | `keys/release.jks` |
 
+### Versioning
+
+The version is bumped automatically from Git on every build:
+
+- `versionCode` is the number of commits on the current branch, so every new commit gives a higher code and the APK installs as an update.
+- `versionName` is `<appVersion>.<commit count>`, for example `1.2.9`. Change `appVersion` in `app/build.gradle.kts` for a bigger version step.
+
+Builds from the same commit share a version, so commit changes before building a release to hand out.
+
 ### Signing keys
 
 Both keys live in a `keys` folder at the project root, which Git ignores:
@@ -97,7 +106,7 @@ To avoid granting again:
 
 - Always install new versions over the existing app; don't uninstall first.
 - Keep using the same build type and key on a given phone.
-- Increase `versionCode` in `app/build.gradle.kts` for every release, so the new APK installs as an update.
+- Build releases from a new commit. The version is bumped automatically, see [Versioning](#versioning).
 
 The grant applies to the main profile only. A copy of the app in Dual Apps, a clone space or a work profile needs its own grant.
 

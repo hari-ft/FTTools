@@ -6,7 +6,8 @@ An FTTools tool that sets how long the screen stays on without being touched bef
 
 - Tap a duration to apply it straight away. The selected one matches the phone's current setting.
 - The durations and their names come from the phone's own Settings app, so the list matches what the phone offers. For example, vivo phones show the same choices as Settings → Display → **Auto-lock**.
-- If the phone's list can't be read, the tool shows standard durations instead (15 seconds, 30 seconds, 1, 2, 5, 10 and 30 minutes) and says so in the card at the top.
+- The app has no built-in list. If the phone's list can't be read, the card at the top says so and only custom durations are shown.
+- Many phones, including vivo, use Android's standard list (15 seconds, 30 seconds, 1, 2, 5, 10 and 30 minutes), so the tool shows the same seven choices. Phones with a different list show their own.
 - **Add custom** adds any duration from 5 seconds to 24 hours, in seconds, minutes or hours. Custom durations are marked "Custom" and have a delete icon; the phone's own durations can't be deleted.
 - The card at the top shows the current timeout, including changes made in system Settings.
 

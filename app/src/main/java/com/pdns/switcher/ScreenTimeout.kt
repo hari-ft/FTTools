@@ -9,7 +9,6 @@ data class TimeoutOption(val ms: Int, val label: String, val fromPhone: Boolean)
 
 object ScreenTimeout {
     private const val DEFAULT_SETTINGS_PACKAGE = "com.android.settings"
-    private val FALLBACK_MS = listOf(15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 1_800_000)
     const val MIN_MS = 5_000
     const val MAX_MS = 86_400_000
 
@@ -38,9 +37,6 @@ object ScreenTimeout {
             TimeoutOption(ms, entries.getOrNull(i)?.toString() ?: label(ms), fromPhone = true)
         }
     }.getOrNull()?.takeIf { it.isNotEmpty() }
-
-    fun fallbackOptions(): List<TimeoutOption> =
-        FALLBACK_MS.map { TimeoutOption(it, label(it), fromPhone = false) }
 
     private fun settingsPackage(ctx: Context): String =
         ctx.packageManager

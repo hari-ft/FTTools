@@ -55,8 +55,8 @@ fun ScreenTimeoutScreen(
             item {
                 StatusCard(
                     "Current: ${currentLabel ?: "Unknown"}",
-                    if (fromPhone) "Options are taken from your phone's Settings"
-                    else "Your phone's options couldn't be read, so standard options are shown",
+                    if (fromPhone) "${baseOptions.size} options read from your phone's Settings app"
+                    else "Your phone's options couldn't be read. Use Add custom to add your own.",
                 )
             }
             items(options, key = { it.ms }) { option ->
