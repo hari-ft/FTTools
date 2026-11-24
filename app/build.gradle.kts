@@ -72,13 +72,30 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
 }
 
+val keptApkCount = 3
+
+fun apkVersionCode(apk: File): Int =
+    apk.name.split('-').getOrNull(1)?.split('.')?.mapNotNull(String::toIntOrNull)
+        ?.takeIf { it.size == 3 }
+        ?.let { (major, minor, patch) -> major * 100 + minor * 10 + patch }
+        ?: 0
+
 listOf("debug", "release").forEach { buildType ->
     val variant = buildType.replaceFirstChar { it.uppercase() }
+    val outputDir = rootProject.layout.buildDirectory.dir(buildType)
     val copyApk = tasks.register<Copy>("copy${variant}Apk") {
         from(layout.buildDirectory.dir("outputs/apk/$buildType"))
         include("*.apk")
         rename { "FTTools-${android.defaultConfig.versionName}-$buildType.apk" }
-        into(rootProject.layout.buildDirectory.dir(buildType))
+        into(outputDir)
+        doLast {
+            outputDir.get().asFile
+                .listFiles { f -> f.name.startsWith("FTTools-") && f.name.endsWith("-$buildType.apk") }
+                .orEmpty()
+                .sortedWith(compareByDescending<File> { apkVersionCode(it) }.thenByDescending { it.lastModified() })
+                .drop(keptApkCount)
+                .forEach { it.delete() }
+        }
     }
     tasks.matching { it.name == "assemble$variant" }.configureEach { finalizedBy(copyApk) }
 }

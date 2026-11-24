@@ -25,7 +25,7 @@ Requires JDK 17+ and the Android SDK (compileSdk 36).
 ./gradlew assembleDebug assembleRelease
 ```
 
-Each APK is copied into a `build` folder at the project root:
+Each APK is copied into a `build` folder at the project root. Each folder keeps only the three newest versions; older APKs are deleted after every build.
 
 | Build | File | Signed with |
 |---|---|---|
