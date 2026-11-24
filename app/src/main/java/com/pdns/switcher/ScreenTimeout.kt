@@ -1,10 +1,15 @@
 package com.pdns.switcher
 
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.provider.Settings
 
+data class TimeoutOption(val ms: Int, val label: String, val fromPhone: Boolean)
+
 object ScreenTimeout {
-    val PRESETS_MS = listOf(15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 1_800_000)
+    private const val DEFAULT_SETTINGS_PACKAGE = "com.android.settings"
+    private val FALLBACK_MS = listOf(15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 1_800_000)
     const val MIN_MS = 5_000
     const val MAX_MS = 86_400_000
 
@@ -17,6 +22,31 @@ object ScreenTimeout {
     } catch (e: SecurityException) {
         false
     }
+
+    fun phoneOptions(ctx: Context): List<TimeoutOption>? = runCatching {
+        val pkg = settingsPackage(ctx)
+        val res = ctx.packageManager.getResourcesForApplication(pkg)
+        val valuesId = res.getIdentifier("screen_timeout_values", "array", pkg)
+        if (valuesId == 0) return null
+        val values = res.getStringArray(valuesId).map { it?.toIntOrNull() }
+            .takeIf { list -> list.none { it == null } }
+            ?.filterNotNull()
+            ?: res.getIntArray(valuesId).toList()
+        val entriesId = res.getIdentifier("screen_timeout_entries", "array", pkg)
+        val entries = if (entriesId != 0) res.getTextArray(entriesId) else emptyArray()
+        values.mapIndexed { i, ms ->
+            TimeoutOption(ms, entries.getOrNull(i)?.toString() ?: label(ms), fromPhone = true)
+        }
+    }.getOrNull()?.takeIf { it.isNotEmpty() }
+
+    fun fallbackOptions(): List<TimeoutOption> =
+        FALLBACK_MS.map { TimeoutOption(it, label(it), fromPhone = false) }
+
+    private fun settingsPackage(ctx: Context): String =
+        ctx.packageManager
+            .resolveActivity(Intent(Settings.ACTION_SETTINGS), PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo?.packageName
+            ?: DEFAULT_SETTINGS_PACKAGE
 
     fun label(ms: Int): String {
         val totalSeconds = ms / 1000

@@ -57,6 +57,7 @@ private fun App(dnsStore: DnsStore, timeoutStore: TimeoutStore, resumeTick: Int)
 
     var dnsEntries by remember { mutableStateOf(dnsStore.load()) }
     var dnsState by remember { mutableStateOf(PrivateDns.read(ctx)) }
+    val timeoutOptions = remember { ScreenTimeout.phoneOptions(ctx) ?: ScreenTimeout.fallbackOptions() }
     var customTimeouts by remember { mutableStateOf(timeoutStore.loadCustom()) }
     var timeoutMs by remember { mutableStateOf(ScreenTimeout.read(ctx)) }
     var hasSecure by remember { mutableStateOf(Grants.hasSecureSettings(ctx)) }
@@ -99,7 +100,9 @@ private fun App(dnsStore: DnsStore, timeoutStore: TimeoutStore, resumeTick: Int)
         Screen.Home -> HomeScreen(
             hasSecure = hasSecure,
             dnsSummary = privateDnsSummary(dnsState),
-            timeoutSummary = timeoutMs?.let(ScreenTimeout::label) ?: "Unknown",
+            timeoutSummary = timeoutMs
+                ?.let { ms -> timeoutOptions.firstOrNull { it.ms == ms }?.label ?: ScreenTimeout.label(ms) }
+                ?: "Unknown",
             onOpen = { screen = it },
         )
         Screen.PrivateDns -> PrivateDnsScreen(
@@ -129,6 +132,7 @@ private fun App(dnsStore: DnsStore, timeoutStore: TimeoutStore, resumeTick: Int)
         )
         Screen.ScreenTimeout -> ScreenTimeoutScreen(
             currentMs = timeoutMs,
+            baseOptions = timeoutOptions,
             customMs = customTimeouts,
             canWrite = canWriteSystem,
             onSelect = { ms ->

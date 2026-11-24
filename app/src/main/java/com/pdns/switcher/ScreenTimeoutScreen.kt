@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ScreenTimeoutScreen(
     currentMs: Int?,
+    baseOptions: List<TimeoutOption>,
     customMs: List<Int>,
     canWrite: Boolean,
     onSelect: (Int) -> Unit,
@@ -28,7 +29,11 @@ fun ScreenTimeoutScreen(
     onBack: () -> Unit,
 ) {
     var dialogOpen by remember { mutableStateOf(false) }
-    val options = (ScreenTimeout.PRESETS_MS + customMs).distinct().sorted()
+    val baseMs = baseOptions.map { it.ms }.toSet()
+    val options = (baseOptions + customMs.filter { it !in baseMs }.map { TimeoutOption(it, ScreenTimeout.label(it), fromPhone = false) })
+        .sortedBy { it.ms }
+    val currentLabel = currentMs?.let { ms -> options.firstOrNull { it.ms == ms }?.label ?: ScreenTimeout.label(ms) }
+    val fromPhone = baseOptions.any { it.fromPhone }
 
     ToolScaffold(
         title = "Screen timeout",
@@ -49,22 +54,29 @@ fun ScreenTimeoutScreen(
             if (!canWrite) item { SystemSettingsAccessCard() }
             item {
                 StatusCard(
-                    "Current: ${currentMs?.let(ScreenTimeout::label) ?: "Unknown"}",
-                    "The screen turns off and locks after this much inactivity",
+                    "Current: ${currentLabel ?: "Unknown"}",
+                    if (fromPhone) "Options are taken from your phone's Settings"
+                    else "Your phone's options couldn't be read, so standard options are shown",
                 )
             }
-            items(options, key = { it }) { ms ->
-                val isCustom = ms in customMs && ms !in ScreenTimeout.PRESETS_MS
+            items(options, key = { it.ms }) { option ->
+                val ms = option.ms
+                val isCustom = ms in customMs && ms !in baseMs
                 Card(Modifier.fillMaxWidth().clickable { onSelect(ms) }) {
                     Row(
                         Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            ScreenTimeout.label(ms),
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.weight(1f),
-                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(option.label, style = MaterialTheme.typography.titleMedium)
+                            if (isCustom) {
+                                Text(
+                                    "Custom",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                         if (isCustom) {
                             IconButton(onClick = { onDeleteCustom(ms) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete")

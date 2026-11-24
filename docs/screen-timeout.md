@@ -5,8 +5,9 @@ An FTTools tool that sets how long the screen stays on without being touched bef
 ## Using it
 
 - Tap a duration to apply it straight away. The selected one matches the phone's current setting.
-- Built-in durations: 15 seconds, 30 seconds, 1, 2, 5, 10 and 30 minutes.
-- **Add custom** adds any duration from 5 seconds to 24 hours, in seconds, minutes or hours. Custom durations show a delete icon; built-in ones can't be deleted.
+- The durations and their names come from the phone's own Settings app, so the list matches what the phone offers. For example, vivo phones show the same choices as Settings → Display → **Auto-lock**.
+- If the phone's list can't be read, the tool shows standard durations instead (15 seconds, 30 seconds, 1, 2, 5, 10 and 30 minutes) and says so in the card at the top.
+- **Add custom** adds any duration from 5 seconds to 24 hours, in seconds, minutes or hours. Custom durations are marked "Custom" and have a delete icon; the phone's own durations can't be deleted.
 - The card at the top shows the current timeout, including changes made in system Settings.
 
 ## Permission
@@ -25,9 +26,11 @@ This setting isn't protected, so the app can ask for it without a computer:
 
 The tool writes `Settings.System.SCREEN_OFF_TIMEOUT` in milliseconds, the same value the system screen-timeout setting uses. Custom durations are kept in the app's SharedPreferences.
 
+The duration list is read from the Settings app's `screen_timeout_values` and `screen_timeout_entries` resources. That's the same list the phone's own screen shows, with names in the phone's language. The manifest declares a `<queries>` entry so the app can see the Settings app on Android 11+.
+
 ## Code
 
 | File | Purpose |
 |---|---|
-| `ScreenTimeout.kt` | Reads and writes the setting, formats durations, stores custom values |
+| `ScreenTimeout.kt` | Reads and writes the setting, loads the phone's duration list, formats durations, stores custom values |
 | `ScreenTimeoutScreen.kt` | Tool screen and custom duration dialog |
