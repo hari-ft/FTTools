@@ -8,9 +8,12 @@ Requires Android 9 (API 28) or newer.
 
 | Tool | What it does |
 |---|---|
-| [Private DNS](#private-dns) | Switch between saved Private DNS providers, or turn Private DNS off, with one slider per provider |
+| [Private DNS](docs/private-dns.md) | Switch between saved Private DNS providers, or turn Private DNS off, with one slider per provider |
+| [Screen timeout](docs/screen-timeout.md) | Set how long the screen stays on before it turns off and locks |
 
-All tools share the [one-time permission grant](#3-grant-the-permission-once-per-phone) below, so setting up the app once covers every tool.
+Open a tool from the FTTools home screen. Each tool's page above covers how to use it and what it changes.
+
+Tools that change protected settings share the [one-time permission grant](#3-grant-the-permission-once-per-phone) below, so one grant covers all of them.
 
 ## Setup
 
@@ -116,110 +119,24 @@ Ways to avoid a PC that aren't built yet:
 - **Shizuku:** a free app, started on the phone with Wireless debugging, that could let FTTools grant itself. It needs restarting after each reboot, but only for the grant itself.
 - **Root:** the app could grant itself on a rooted phone.
 
-## Private DNS
-
-Switches the system **Private DNS** provider without going through Settings → Network → Private DNS.
-
-- One on/off slider per saved provider; turning one on turns the others off.
-- Turning off the active provider sets Private DNS to **Off**.
-- A settings screen (gear icon) to add, edit and delete providers.
-- Shows the phone's real current Private DNS state, including changes made in system Settings.
-
-### Providers
-
-Private DNS uses DNS-over-TLS, so it accepts **hostnames only**. An IP address such as `1.1.1.1` won't work, and the app rejects one with a suggested hostname.
-
-Built-in defaults:
-
-| Provider | Hostname | Blocks |
-|---|---|---|
-| AdGuard | `dns.adguard-dns.com` | Ads, trackers, phishing |
-| Cloudflare (1.1.1.1 / 1.0.0.1) | `one.one.one.one` | Nothing |
-| Google (8.8.8.8 / 8.8.4.4) | `dns.google` | Nothing |
-
-### Other providers you can add
-
-Add any of these from the settings screen. Any service that publishes a DNS-over-TLS hostname will work; this isn't a complete list.
-
-**No filtering:** privacy and speed only; every site, ad and tracker loads normally.
-
-| Provider | Hostname |
-|---|---|
-| Cloudflare (1.1.1.1 / 1.0.0.1) | `one.one.one.one` |
-| Google (8.8.8.8 / 8.8.4.4) | `dns.google` |
-| Quad9, unfiltered | `dns10.quad9.net` |
-| AdGuard, unfiltered | `unfiltered.adguard-dns.com` |
-| Mullvad | `dns.mullvad.net` |
-| Control D, unfiltered | `p0.freedns.controld.com` |
-| DNS.SB | `dot.sb` |
-
-**Malware and phishing blocking**
-
-| Provider | Hostname |
-|---|---|
-| Quad9 | `dns.quad9.net` |
-| Cloudflare Security | `security.cloudflare-dns.com` |
-| CleanBrowsing Security | `security-filter-dns.cleanbrowsing.org` |
-| Control D, malware | `p1.freedns.controld.com` |
-
-**Ad and tracker blocking:** sites still load, but ad and tracker domains are blocked.
-
-| Provider | Hostname |
-|---|---|
-| AdGuard | `dns.adguard-dns.com` |
-| Mullvad, ads | `adblock.dns.mullvad.net` |
-| Mullvad, ads + trackers + malware | `base.dns.mullvad.net` |
-| Control D, ads + malware | `p2.freedns.controld.com` |
-
-**Family:** blocks adult content and forces safe search.
-
-| Provider | Hostname |
-|---|---|
-| AdGuard Family | `family.adguard-dns.com` |
-| Cloudflare Family | `family.cloudflare-dns.com` |
-| CleanBrowsing Family | `family-filter-dns.cleanbrowsing.org` |
-| CleanBrowsing Adult | `adult-filter-dns.cleanbrowsing.org` |
-| Mullvad Family | `family.dns.mullvad.net` |
-| Control D Family | `family.freedns.controld.com` |
-
-**Custom:** you choose what gets blocked in the provider's dashboard. Sign up for a free account to get your ID.
-
-| Provider | Hostname |
-|---|---|
-| NextDNS | `<your-id>.dns.nextdns.io` |
-| AdGuard DNS personal | `<your-id>.d.adguard-dns.com` |
-| Control D custom | `<your-id>.dns.controld.com` |
-
-**Not supported:** OpenDNS, Comodo, plain IP addresses and your ISP's own DNS don't offer DNS-over-TLS, so Android can't use them for Private DNS.
-
-### Ad blocking side effects
-
-Ad blocking can stop sponsored search results, deal or email tracking links, and "watch an ad" rewards from working. Rarely, it breaks a login or payment page. When that happens, switch to an unfiltered provider for that task, then switch back. It can't block YouTube, Facebook or Instagram ads, because those come from the same domain as the content.
-
-### How it works
-
-The tool writes the same system settings the Private DNS screen uses:
-
-| Setting (`Settings.Global`) | Value |
-|---|---|
-| `private_dns_mode` | `off`, `opportunistic` (Auto) or `hostname` |
-| `private_dns_specifier` | The provider hostname |
-
-The saved provider list is kept in the app's SharedPreferences.
-
 ## Project layout
 
 ```
 app/src/main/java/com/pdns/switcher/
-├── MainActivity.kt   Compose UI: Private DNS home screen, settings screen, edit dialog
-├── PrivateDns.kt     Private DNS: reads/writes system settings, validates hostnames
-└── DnsStore.kt       Private DNS: saved provider list and defaults
+├── MainActivity.kt          Navigation, home screen, shared UI (scaffold, status and permission cards)
+├── Grants.kt                Permission checks and the adb grant command
+├── PrivateDns.kt            Private DNS: reads/writes system settings, validates hostnames
+├── DnsStore.kt              Private DNS: saved provider list and defaults
+├── PrivateDnsScreens.kt     Private DNS: tool screen, provider management, edit dialog
+├── ScreenTimeout.kt         Screen timeout: reads/writes the setting, saved custom values
+└── ScreenTimeoutScreen.kt   Screen timeout: tool screen, custom value dialog
+docs/                        One help page per tool
 ```
 
 ## Adding a tool
 
 A new tool usually needs:
 
-1. A settings helper like `PrivateDns.kt` that reads and writes the setting through `Settings.Global`, `Settings.Secure` or `Settings.System`. Protected settings are covered by the existing `WRITE_SECURE_SETTINGS` grant.
-2. A screen in `MainActivity.kt`, plus a row in the [Tools](#tools) table above.
-3. A section in this README describing what the tool changes.
+1. A settings helper like `PrivateDns.kt` that reads and writes the setting through `Settings.Global`, `Settings.Secure` or `Settings.System`. Protected settings are covered by the existing `WRITE_SECURE_SETTINGS` grant; `Settings.System` values can instead use the in-app "Modify system settings" permission (see `Grants.kt`).
+2. A screen file, a `Screen` entry and a home screen card in `MainActivity.kt`.
+3. A help page in `docs/`, linked from the [Tools](#tools) table above.

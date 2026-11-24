@@ -11,7 +11,6 @@ data class DnsEntry(
     val hostname: String,
 )
 
-/** Persists the user's list of Private DNS providers in SharedPreferences as JSON. */
 class DnsStore(context: Context) {
     private val prefs = context.getSharedPreferences("dns_store", Context.MODE_PRIVATE)
 
@@ -37,7 +36,6 @@ class DnsStore(context: Context) {
     companion object {
         private const val KEY = "entries"
 
-        // Android Private DNS needs a hostname (DNS-over-TLS), not an IP.
         val DEFAULTS = listOf(
             DnsEntry("adguard", "AdGuard", "dns.adguard-dns.com"),
             DnsEntry("cloudflare", "Cloudflare (1.1.1.1 / 1.0.0.1)", "one.one.one.one"),

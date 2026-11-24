@@ -9,16 +9,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,17 +27,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
-    // Bumped on resume so the UI re-reads the system state (it may have changed in Settings).
     private var resumeTick by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val store = DnsStore(this)
+        val dnsStore = DnsStore(this)
+        val timeoutStore = TimeoutStore(this)
         setContent {
             val dark = isSystemInDarkTheme()
             MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
-                App(store, resumeTick)
+                App(dnsStore, timeoutStore, resumeTick)
             }
         }
     }
@@ -51,136 +48,183 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private enum class Screen { Home, PrivateDns, DnsProviders, ScreenTimeout }
+
 @Composable
-private fun App(store: DnsStore, resumeTick: Int) {
+private fun App(dnsStore: DnsStore, timeoutStore: TimeoutStore, resumeTick: Int) {
     val ctx = LocalContext.current
-    var entries by remember { mutableStateOf(store.load()) }
-    var state by remember { mutableStateOf(PrivateDns.read(ctx)) }
-    var hasPermission by remember { mutableStateOf(PrivateDns.hasPermission(ctx)) }
-    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var screen by rememberSaveable { mutableStateOf(Screen.Home) }
+
+    var dnsEntries by remember { mutableStateOf(dnsStore.load()) }
+    var dnsState by remember { mutableStateOf(PrivateDns.read(ctx)) }
+    var customTimeouts by remember { mutableStateOf(timeoutStore.loadCustom()) }
+    var timeoutMs by remember { mutableStateOf(ScreenTimeout.read(ctx)) }
+    var hasSecure by remember { mutableStateOf(Grants.hasSecureSettings(ctx)) }
+    var canWriteSystem by remember { mutableStateOf(Grants.canWriteSystemSettings(ctx)) }
 
     fun refresh() {
-        state = PrivateDns.read(ctx)
-        hasPermission = PrivateDns.hasPermission(ctx)
+        dnsState = PrivateDns.read(ctx)
+        timeoutMs = ScreenTimeout.read(ctx)
+        hasSecure = Grants.hasSecureSettings(ctx)
+        canWriteSystem = Grants.canWriteSystemSettings(ctx)
     }
     LaunchedEffect(resumeTick) { refresh() }
 
-    fun updateEntries(list: List<DnsEntry>) {
-        entries = list
-        store.save(list)
+    fun toastIfDenied(ok: Boolean) {
+        if (!ok) Toast.makeText(ctx, "Permission missing - see the card at the top", Toast.LENGTH_LONG).show()
     }
 
-    fun setActive(host: String?) {
-        val ok = if (host == null) PrivateDns.disable(ctx) else PrivateDns.enable(ctx, host)
-        if (!ok) Toast.makeText(ctx, "Permission missing - see the setup card", Toast.LENGTH_LONG).show()
+    fun setDns(host: String?) {
+        toastIfDenied(if (host == null) PrivateDns.disable(ctx) else PrivateDns.enable(ctx, host))
         refresh()
     }
 
-    if (showSettings) {
-        BackHandler { showSettings = false }
-        SettingsScreen(
-            entries = entries,
-            activeHost = state.activeHost,
-            onBack = { showSettings = false },
+    fun updateDnsEntries(list: List<DnsEntry>) {
+        dnsEntries = list
+        dnsStore.save(list)
+    }
+
+    fun updateCustomTimeouts(list: List<Int>) {
+        customTimeouts = list
+        timeoutStore.saveCustom(list)
+    }
+
+    if (screen != Screen.Home) {
+        BackHandler {
+            screen = if (screen == Screen.DnsProviders) Screen.PrivateDns else Screen.Home
+        }
+    }
+
+    when (screen) {
+        Screen.Home -> HomeScreen(
+            hasSecure = hasSecure,
+            dnsSummary = privateDnsSummary(dnsState),
+            timeoutSummary = timeoutMs?.let(ScreenTimeout::label) ?: "Unknown",
+            onOpen = { screen = it },
+        )
+        Screen.PrivateDns -> PrivateDnsScreen(
+            entries = dnsEntries,
+            state = dnsState,
+            hasPermission = hasSecure,
+            onToggle = { e, on -> setDns(if (on) e.hostname else null) },
+            onOpenSettings = { screen = Screen.DnsProviders },
+            onBack = { screen = Screen.Home },
+        )
+        Screen.DnsProviders -> DnsProvidersScreen(
+            entries = dnsEntries,
+            activeHost = dnsState.activeHost,
+            onBack = { screen = Screen.PrivateDns },
             onSave = { old, new ->
-                updateEntries(
-                    if (old == null) entries + new else entries.map { if (it.id == old.id) new else it }
+                updateDnsEntries(
+                    if (old == null) dnsEntries + new else dnsEntries.map { if (it.id == old.id) new else it }
                 )
-                // Editing the provider that is currently on: apply the new hostname to the system.
-                if (old != null && old.hostname == state.activeHost && old.hostname != new.hostname) {
-                    setActive(new.hostname)
+                if (old != null && old.hostname == dnsState.activeHost && old.hostname != new.hostname) {
+                    setDns(new.hostname)
                 }
             },
             onDelete = { e ->
-                updateEntries(entries.filterNot { it.id == e.id })
-                if (e.hostname == state.activeHost) setActive(null)
+                updateDnsEntries(dnsEntries.filterNot { it.id == e.id })
+                if (e.hostname == dnsState.activeHost) setDns(null)
             },
         )
-    } else {
-        HomeScreen(
-            entries = entries,
-            state = state,
-            hasPermission = hasPermission,
-            onToggle = { e, on -> setActive(if (on) e.hostname else null) },
-            onOpenSettings = { showSettings = true },
+        Screen.ScreenTimeout -> ScreenTimeoutScreen(
+            currentMs = timeoutMs,
+            customMs = customTimeouts,
+            canWrite = canWriteSystem,
+            onSelect = { ms ->
+                toastIfDenied(ScreenTimeout.write(ctx, ms))
+                refresh()
+            },
+            onAddCustom = { ms -> if (ms !in customTimeouts) updateCustomTimeouts(customTimeouts + ms) },
+            onDeleteCustom = { ms -> updateCustomTimeouts(customTimeouts - ms) },
+            onBack = { screen = Screen.Home },
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
-    entries: List<DnsEntry>,
-    state: PrivateDns.State,
-    hasPermission: Boolean,
-    onToggle: (DnsEntry, Boolean) -> Unit,
-    onOpenSettings: () -> Unit,
+    hasSecure: Boolean,
+    dnsSummary: String,
+    timeoutSummary: String,
+    onOpen: (Screen) -> Unit,
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Private DNS") },
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                },
-            )
-        },
-    ) { pad ->
+    ToolScaffold(title = "FTTools") { pad ->
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.padding(pad).fillMaxSize(),
         ) {
-            if (!hasPermission) item { PermissionCard() }
-            item { StatusCard(state) }
-            items(entries, key = { it.id }) { e ->
-                val on = state.activeHost.equals(e.hostname, ignoreCase = true)
-                Card(Modifier.fillMaxWidth()) {
-                    Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(e.label, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                e.hostname,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(checked = on, onCheckedChange = { onToggle(e, it) })
-                    }
-                }
-            }
-            if (entries.isEmpty()) item {
-                Text("No providers yet. Add one in Settings.", Modifier.padding(8.dp))
-            }
+            if (!hasSecure) item { SecureGrantCard() }
+            item { ToolCard("Private DNS", dnsSummary) { onOpen(Screen.PrivateDns) } }
+            item { ToolCard("Screen timeout", timeoutSummary) { onOpen(Screen.ScreenTimeout) } }
         }
     }
 }
 
 @Composable
-private fun StatusCard(state: PrivateDns.State) {
-    val (title, detail) = when (state.mode) {
-        PrivateDns.MODE_OFF -> "Off" to "Private DNS is turned off"
-        PrivateDns.MODE_HOSTNAME -> "On" to (state.hostname ?: "")
-        else -> "Auto" to "Uses DNS-over-TLS when the network supports it"
+private fun ToolCard(title: String, summary: String, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ToolScaffold(
+    title: String,
+    onBack: (() -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit = {},
+    floatingActionButton: @Composable () -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                },
+                actions = actions,
+            )
+        },
+        floatingActionButton = floatingActionButton,
+        content = content,
+    )
+}
+
+@Composable
+fun StatusCard(title: String, detail: String) {
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text("Current: $title", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(detail, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
 
 @Composable
-private fun PermissionCard() {
+fun SecureGrantCard() {
     val ctx = LocalContext.current
     Card(
         Modifier.fillMaxWidth(),
@@ -189,144 +233,15 @@ private fun PermissionCard() {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("One-time setup needed", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(
-                "Android only lets apps change Private DNS after a permission is granted from a computer. " +
-                    "Connect the phone with USB debugging on and run:"
+                "Android only lets apps change protected settings such as Private DNS after a permission " +
+                    "is granted from a computer. Connect the phone with USB debugging on and run:"
             )
-            Text(PrivateDns.GRANT_COMMAND, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+            Text(Grants.SECURE_GRANT_COMMAND, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = {
                 val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(ClipData.newPlainText("adb", PrivateDns.GRANT_COMMAND))
+                cm.setPrimaryClip(ClipData.newPlainText("adb", Grants.SECURE_GRANT_COMMAND))
                 Toast.makeText(ctx, "Copied", Toast.LENGTH_SHORT).show()
             }) { Text("Copy command") }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SettingsScreen(
-    entries: List<DnsEntry>,
-    activeHost: String?,
-    onBack: () -> Unit,
-    onSave: (old: DnsEntry?, new: DnsEntry) -> Unit,
-    onDelete: (DnsEntry) -> Unit,
-) {
-    var dialogOpen by remember { mutableStateOf(false) }
-    var editTarget by remember { mutableStateOf<DnsEntry?>(null) } // null while adding
-    var deleting by remember { mutableStateOf<DnsEntry?>(null) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { editTarget = null; dialogOpen = true },
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("Add provider") },
-            )
-        },
-    ) { pad ->
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 96.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.padding(pad).fillMaxSize(),
-        ) {
-            items(entries, key = { it.id }) { e ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(
-                        Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(e.label, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                e.hostname,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        IconButton(onClick = { editTarget = e; dialogOpen = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit")
-                        }
-                        IconButton(onClick = { deleting = e }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (dialogOpen) {
-        val target = editTarget
-        EditDialog(
-            entry = target,
-            existing = entries,
-            onDismiss = { dialogOpen = false },
-            onConfirm = { onSave(target, it); dialogOpen = false },
-        )
-    }
-
-    deleting?.let { e ->
-        val isActive = e.hostname.equals(activeHost, ignoreCase = true)
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            title = { Text("Delete ${e.label}?") },
-            text = { if (isActive) Text("This provider is on now. Deleting it will turn Private DNS off.") },
-            confirmButton = { TextButton(onClick = { onDelete(e); deleting = null }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
-        )
-    }
-}
-
-@Composable
-private fun EditDialog(
-    entry: DnsEntry?,
-    existing: List<DnsEntry>,
-    onDismiss: () -> Unit,
-    onConfirm: (DnsEntry) -> Unit,
-) {
-    var label by remember { mutableStateOf(entry?.label ?: "") }
-    var host by remember { mutableStateOf(entry?.hostname ?: "") }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (entry == null) "Add provider" else "Edit provider") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = label, onValueChange = { label = it },
-                    label = { Text("Name (optional)") }, singleLine = true,
-                )
-                OutlinedTextField(
-                    value = host, onValueChange = { host = it; error = null },
-                    label = { Text("Provider hostname") }, singleLine = true,
-                    placeholder = { Text("dns.example.com") },
-                    isError = error != null,
-                    supportingText = error?.let { { Text(it) } },
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val h = host.trim().lowercase()
-                val dup = existing.any { it.id != entry?.id && it.hostname.equals(h, ignoreCase = true) }
-                error = PrivateDns.validate(h) ?: if (dup) "This hostname is already in the list" else null
-                if (error == null) {
-                    val name = label.trim().ifEmpty { h }
-                    onConfirm(entry?.copy(label = name, hostname = h) ?: DnsEntry(label = name, hostname = h))
-                }
-            }) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
 }
